@@ -11,6 +11,7 @@ from .client_base import BaseClient
 from .collection import Collection
 from .database import Database
 from .admin_client import DEFAULT_TENANT
+from .query_result import QueryResult, QueryResultItem
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,11 @@ class OceanBaseServerClient(BaseClient):
         with conn.cursor() as cursor:
             cursor.execute(sql)
             
-            if sql.strip().upper().startswith('SELECT') or sql.strip().upper().startswith('SHOW'):
+            sql_upper = sql.strip().upper()
+            if (sql_upper.startswith('SELECT') or 
+                sql_upper.startswith('SHOW') or 
+                sql_upper.startswith('DESCRIBE') or
+                sql_upper.startswith('DESC')):
                 return cursor.fetchall()
             
             conn.commit()
@@ -108,43 +113,11 @@ class OceanBaseServerClient(BaseClient):
     
     # ==================== Collection Management (framework) ====================
     
-    def create_collection(
-        self,
-        name: str,
-        dimension: Optional[int] = None,
-        **kwargs
-    ) -> Collection:
-        """Create collection"""
-        logger.info(f"OceanBaseServerClient: create_collection framework for {name} (dim={dimension})")
-        # TODO: implement OceanBase create_collection logic
-        # Return Collection object after creating table
-        return Collection(client=self, name=name, dimension=dimension, **kwargs)
-    
-    def get_collection(self, name: str) -> Collection:
-        """Get collection object"""
-        logger.info(f"OceanBaseServerClient: get_collection framework for {name}")
-        # TODO: implement OceanBase get_collection logic
-        # Return Collection object after getting table info
-        return Collection(client=self, name=name)
-    
-    def delete_collection(self, name: str) -> None:
-        """Delete collection"""
-        logger.info(f"OceanBaseServerClient: delete_collection framework for {name}")
-        # TODO: implement OceanBase delete_collection logic
-        pass
-    
-    def list_collections(self) -> List[Collection]:
-        """List all collections"""
-        logger.info("OceanBaseServerClient: list_collections framework")
-        # TODO: implement OceanBase list_collections logic
-        # Return list of Collection objects
-        return []
-    
-    def has_collection(self, name: str) -> bool:
-        """Check if collection exists"""
-        logger.info(f"OceanBaseServerClient: has_collection framework for {name}")
-        # TODO: implement OceanBase has_collection logic
-        return False
+    # create_collection is inherited from BaseClient - no override needed
+    # get_collection is inherited from BaseClient - no override needed
+    # delete_collection is inherited from BaseClient - no override needed
+    # list_collections is inherited from BaseClient - no override needed
+    # has_collection is inherited from BaseClient - no override needed
     
     # ==================== Collection Internal Operations ====================
     # These methods are called by Collection objects
@@ -270,97 +243,7 @@ class OceanBaseServerClient(BaseClient):
         logger.info(f"✅ Successfully deleted data from '{collection_name}'")
     
     # -------------------- DQL Operations --------------------
-    
-    def _collection_query(
-        self,
-        collection_id: Optional[str],
-        collection_name: str,
-        query_vector: Optional[Union[List[float], List[List[float]]]] = None,
-        query_text: Optional[Union[str, List[str]]] = None,
-        n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-        where_document: Optional[Dict[str, Any]] = None,
-        include: Optional[List[str]] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        [Internal] Query collection by vector similarity - OceanBase implementation
-        
-        Args:
-            collection_id: Collection ID
-            collection_name: Collection name
-            query_vector: Query vector(s)
-            query_text: Query text(s)
-            n_results: Number of results
-            where: Metadata filter
-            where_document: Document filter
-            include: Fields to include
-            **kwargs: Additional parameters
-            
-        Returns:
-            Query results dictionary
-        """
-        logger.info(f"OceanBase: Querying collection '{collection_name}'")
-        conn = self._ensure_connection()
-        
-        # TODO: Implement OceanBase specific query logic
-        # Example SQL: SELECT * FROM {collection_name} ORDER BY vector <-> ? LIMIT ?
-        
-        results = {
-            "ids": [],
-            "distances": [],
-            "metadatas": [],
-            "documents": [],
-            "embeddings": []
-        }
-        
-        logger.info(f"✅ Query completed for '{collection_name}'")
-        return results
-    
-    def _collection_get(
-        self,
-        collection_id: Optional[str],
-        collection_name: str,
-        ids: Optional[Union[str, List[str]]] = None,
-        where: Optional[Dict[str, Any]] = None,
-        where_document: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        include: Optional[List[str]] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        [Internal] Get data from collection - OceanBase implementation
-        
-        Args:
-            collection_id: Collection ID
-            collection_name: Collection name
-            ids: IDs to retrieve
-            where: Metadata filter
-            where_document: Document filter
-            limit: Maximum number of results
-            offset: Number of results to skip
-            include: Fields to include
-            **kwargs: Additional parameters
-            
-        Returns:
-            Results dictionary
-        """
-        logger.info(f"OceanBase: Getting data from collection '{collection_name}'")
-        conn = self._ensure_connection()
-        
-        # TODO: Implement OceanBase specific get logic
-        # Example SQL: SELECT * FROM {collection_name} WHERE id IN (...)
-        
-        results = {
-            "ids": [],
-            "metadatas": [],
-            "documents": [],
-            "embeddings": []
-        }
-        
-        logger.info(f"✅ Get completed for '{collection_name}'")
-        return results
+    # Note: _collection_query() and _collection_get() use base class implementation
     
     def _collection_hybrid_search(
         self,
