@@ -206,9 +206,11 @@ class TestClientCreation:
         # Add some test data to test count and peek with data
         import uuid
         test_ids = [str(uuid.uuid4()) for _ in range(3)]
+        # Use collection dimension for vectors
+        test_vectors = [[float(i + j) for j in range(test_dimension)] for i in range(3)]
         collection.add(
             ids=test_ids,
-            vectors=[[1.0, 2.0, 3.0] for _ in range(3)],
+            vectors=test_vectors,
             documents=[f"Test document {i}" for i in range(3)],
             metadatas=[{"index": i} for i in range(3)]
         )
