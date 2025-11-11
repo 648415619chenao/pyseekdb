@@ -66,12 +66,34 @@ class ClientAPI(ABC):
         embedding_function: Optional[EmbeddingFunction[EmbeddingDocuments]] = None,
         **kwargs
     ) -> "Collection":
-        """Create collection"""
+        """
+        Create collection
+        
+        Args:
+            name: Collection name
+            configuration: HNSW index configuration (HNSWConfiguration)
+            embedding_function: Embedding function to convert documents to vectors.
+                               If None, uses DefaultEmbeddingFunction (sentence-transformers).
+                               If provided, the dimension in configuration should match the
+                               embedding function's output dimension.
+            **kwargs: Additional parameters
+        """
         pass
     
     @abstractmethod
-    def get_collection(self, name: str) -> "Collection":
-        """Get collection object"""
+    def get_collection(
+        self,
+        name: str,
+        embedding_function: Optional[EmbeddingFunction[EmbeddingDocuments]] = None
+    ) -> "Collection":
+        """
+        Get collection object
+        
+        Args:
+            name: Collection name
+            embedding_function: Embedding function to convert documents to vectors.
+                               If None, collection will not have an embedding function.
+        """
         pass
     
     @abstractmethod
@@ -220,12 +242,18 @@ class BaseClient(BaseConnection, AdminAPI):
         # Create and return Collection object
         return Collection(client=self, name=name, dimension=dimension, **kwargs)
     
-    def get_collection(self, name: str) -> "Collection":
+    def get_collection(
+        self,
+        name: str,
+        embedding_function: Optional[EmbeddingFunction[EmbeddingDocuments]] = None
+    ) -> "Collection":
         """
         Get a collection object (user-facing API)
         
         Args:
             name: Collection name
+            embedding_function: Embedding function to convert documents to vectors.
+                               If None, collection will not have an embedding function.
             
         Returns:
             Collection object
@@ -269,7 +297,7 @@ class BaseClient(BaseConnection, AdminAPI):
                 break
         
         # Create and return Collection object
-        return Collection(client=self, name=name, dimension=dimension)
+        return Collection(client=self, name=name, dimension=dimension, embedding_function=embedding_function)
     
     def delete_collection(self, name: str) -> None:
         """
@@ -404,9 +432,8 @@ class BaseClient(BaseConnection, AdminAPI):
         # First, try to get the collection
         if self.has_collection(name):
             # Collection exists, return it
-            # Note: get_collection doesn't accept embedding_function parameter
-            # The embedding_function is stored in the collection metadata, not passed here
-            return self.get_collection(name)
+            # Pass embedding_function if provided, otherwise use None
+            return self.get_collection(name, embedding_function=embedding_function)
         
         # Collection doesn't exist, create it with provided or default configuration
         return self.create_collection(
@@ -442,7 +469,10 @@ class BaseClient(BaseConnection, AdminAPI):
             vectors: Single vector or list of vectors (optional)
             metadatas: Single metadata dict or list of metadata dicts (optional)
             documents: Single document or list of documents (optional)
-            embedding_function: Embedding function to use if documents provided but vectors not provided
+            embedding_function: EmbeddingFunction instance to convert documents to vectors.
+                               Required if documents provided but vectors not provided.
+                               Must implement __call__ method that accepts Documents
+                               and returns Embeddings (List[List[float]]).
             **kwargs: Additional parameters
         """
         logger.info(f"Adding data to collection '{collection_name}'")
@@ -898,20 +928,31 @@ class BaseClient(BaseConnection, AdminAPI):
         
         Args:
             texts: Single text or list of texts
-            **kwargs: Additional parameters for embedding
+            **kwargs: Additional parameters for embedding, including:
+                embedding_function: EmbeddingFunction instance to convert texts to vectors.
+                                   Must implement __call__ method that accepts Documents
+                                   and returns Embeddings (List[List[float]]).
+                                   If not provided, raises NotImplementedError.
             
         Returns:
-            List of vectors
+            List of vectors (List[List[float]]), where each inner list is an embedding vector
             
         Note:
-            This is a placeholder method. Subclasses should override this
-            to provide actual embedding functionality, or users should
-            provide query_embeddings directly.
+            Uses embedding_function from kwargs if provided, otherwise raises NotImplementedError.
         """
-        raise NotImplementedError(
-            "Text embedding is not implemented yet. "
-            "Please provide query_embeddings directly instead of query_texts."
-        )
+        embedding_function = kwargs.get('embedding_function')
+        if embedding_function is None:
+            raise NotImplementedError(
+                "Text embedding is not implemented. "
+                "Please provide query_embeddings directly or set embedding_function in collection."
+            )
+        
+        # Normalize texts to list
+        if isinstance(texts, str):
+            texts = [texts]
+        
+        # Use embedding function to generate embeddings
+        return embedding_function(texts)
     
     def _normalize_row(self, row: Any, cursor_description: Optional[Any] = None) -> Dict[str, Any]:
         """
@@ -1224,7 +1265,11 @@ class BaseClient(BaseConnection, AdminAPI):
             where: Metadata filter
             where_document: Document filter
             include: Fields to include
-            **kwargs: Additional parameters
+            **kwargs: Additional parameters, including:
+                embedding_function: EmbeddingFunction instance to convert query_texts to vectors.
+                                   Required if query_texts is provided and collection doesn't have
+                                   an embedding_function set. Must implement __call__ method that
+                                   accepts Documents and returns Embeddings (List[List[float]]).
             
         Returns:
             - If single vector/text provided: QueryResult object containing query results
@@ -1485,7 +1530,11 @@ class BaseClient(BaseConnection, AdminAPI):
             rank: Ranking configuration dict (e.g., {"rrf": {"rank_window_size": 60, "rank_constant": 60}})
             n_results: Final number of results to return after ranking (default: 10)
             include: Fields to include in results (optional)
-            **kwargs: Additional parameters
+            **kwargs: Additional parameters, including:
+                embedding_function: EmbeddingFunction instance to convert query_texts in knn to vectors.
+                                   Required if knn.query_texts is provided and collection doesn't have
+                                   an embedding_function set. Must implement __call__ method that
+                                   accepts Documents and returns Embeddings (List[List[float]]).
             
         Returns:
             Search results dictionary containing ids, distances, metadatas, documents, embeddings, etc.
@@ -1497,7 +1546,7 @@ class BaseClient(BaseConnection, AdminAPI):
         table_name = f"c$v1${collection_name}"
         
         # Build search_parm JSON
-        search_parm = self._build_search_parm(query, knn, rank, n_results)
+        search_parm = self._build_search_parm(query, knn, rank, n_results, **kwargs)
         
         # Convert search_parm to JSON string
         search_parm_json = json.dumps(search_parm, ensure_ascii=False)
@@ -1549,7 +1598,8 @@ class BaseClient(BaseConnection, AdminAPI):
         query: Optional[Dict[str, Any]],
         knn: Optional[Dict[str, Any]],
         rank: Optional[Dict[str, Any]],
-        n_results: int
+        n_results: int,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Build search_parm JSON from query, knn, and rank parameters
@@ -1559,6 +1609,10 @@ class BaseClient(BaseConnection, AdminAPI):
             knn: Vector search configuration dict
             rank: Ranking configuration dict
             n_results: Final number of results to return
+            **kwargs: Additional parameters, including:
+                embedding_function: EmbeddingFunction instance to convert query_texts in knn to vectors.
+                                   Required if knn.query_texts is provided. Must implement __call__
+                                   method that accepts Documents and returns Embeddings (List[List[float]]).
             
         Returns:
             search_parm dictionary
@@ -1573,7 +1627,7 @@ class BaseClient(BaseConnection, AdminAPI):
         
         # Build knn part (vector search)
         if knn:
-            knn_expr = self._build_knn_expression(knn)
+            knn_expr = self._build_knn_expression(knn, **kwargs)
             if knn_expr:
                 search_parm["knn"] = knn_expr
         
@@ -1808,12 +1862,20 @@ class BaseClient(BaseConnection, AdminAPI):
         
         return result
     
-    def _build_knn_expression(self, knn: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _build_knn_expression(self, knn: Dict[str, Any], **kwargs) -> Optional[Dict[str, Any]]:
         """
         Build knn expression from knn dict
         
         Args:
-            knn: Vector search configuration dict
+            knn: Vector search configuration dict with:
+                - query_texts: Query text(s) to be embedded (optional if query_embeddings provided)
+                - query_embeddings: Query vector(s) (optional if query_texts provided)
+                - where: Metadata filter conditions (optional)
+                - n_results: Number of results for vector search (optional)
+            **kwargs: Additional parameters, including:
+                embedding_function: EmbeddingFunction instance to convert query_texts to vectors.
+                                   Required if query_texts is provided. Must implement __call__
+                                   method that accepts Documents and returns Embeddings (List[List[float]]).
             
         Returns:
             knn expression dict with optional filter
@@ -1836,7 +1898,7 @@ class BaseClient(BaseConnection, AdminAPI):
             # Convert text to embedding
             try:
                 texts = query_texts if isinstance(query_texts, list) else [query_texts]
-                embeddings = self._embed_texts(texts[0] if len(texts) > 0 else texts)
+                embeddings = self._embed_texts(texts[0] if len(texts) > 0 else texts, **kwargs)
                 if embeddings and len(embeddings) > 0:
                     query_vector = embeddings[0]
             except NotImplementedError:
