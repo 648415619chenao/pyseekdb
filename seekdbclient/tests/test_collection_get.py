@@ -15,6 +15,33 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 import seekdbclient
+from typing import List, Union
+
+
+# ==================== Simple 3D Embedding Function for Testing ====================
+class Simple3DEmbeddingFunction:
+    """Simple embedding function that returns 3-dimensional vectors for testing"""
+    
+    def __init__(self):
+        self.dimension = 3
+    
+    def __call__(self, input: Union[str, List[str]]) -> List[List[float]]:
+        """Convert documents to 3D embeddings (simple hash-based)"""
+        if isinstance(input, str):
+            input = [input]
+        
+        embeddings = []
+        for doc in input:
+            # Simple hash-based 3D embedding for testing
+            hash_val = hash(doc) % 1000
+            embedding = [
+                float((hash_val % 10) / 10.0),
+                float(((hash_val // 10) % 10) / 10.0),
+                float(((hash_val // 100) % 10) / 10.0)
+            ]
+            embeddings.append(embedding)
+        
+        return embeddings
 
 
 # ==================== Environment Variable Configuration ====================
@@ -133,7 +160,13 @@ class TestCollectionGet:
         collection_name = f"test_get_{int(time.time())}"
         from seekdbclient import HNSWConfiguration
         config = HNSWConfiguration(dimension=3, distance='l2')
-        collection = client.create_collection(name=collection_name, configuration=config)
+        # Use a simple 3D embedding function to match the dimension
+        embedding_function = Simple3DEmbeddingFunction()
+        collection = client.create_collection(
+            name=collection_name,
+            configuration=config,
+            embedding_function=embedding_function
+        )
         
         try:
             # Insert test data and get IDs
@@ -254,7 +287,13 @@ class TestCollectionGet:
         collection_name = f"test_get_{int(time.time())}"
         from seekdbclient import HNSWConfiguration
         config = HNSWConfiguration(dimension=3, distance='l2')
-        collection = client.create_collection(name=collection_name, configuration=config)
+        # Use a simple 3D embedding function to match the dimension
+        embedding_function = Simple3DEmbeddingFunction()
+        collection = client.create_collection(
+            name=collection_name,
+            configuration=config,
+            embedding_function=embedding_function
+        )
         
         try:
             # Insert test data and get IDs
@@ -404,7 +443,13 @@ class TestCollectionGet:
         collection_name = f"test_get_{int(time.time())}"
         from seekdbclient import HNSWConfiguration
         config = HNSWConfiguration(dimension=3, distance='l2')
-        collection = client.create_collection(name=collection_name, configuration=config)
+        # Use a simple 3D embedding function to match the dimension
+        embedding_function = Simple3DEmbeddingFunction()
+        collection = client.create_collection(
+            name=collection_name,
+            configuration=config,
+            embedding_function=embedding_function
+        )
         
         try:
             # Insert test data and get IDs

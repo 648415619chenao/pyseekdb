@@ -166,9 +166,13 @@ class _ClientProxy:
             **kwargs
         )
     
-    def get_collection(self, name: str) -> "Collection":
+    def get_collection(
+        self,
+        name: str,
+        embedding_function: Optional["EmbeddingFunction[EmbeddingDocuments]"] = None
+    ) -> "Collection":
         """Proxy to server implementation - collection operations only"""
-        return self._server.get_collection(name=name)
+        return self._server.get_collection(name=name, embedding_function=embedding_function)
     
     def delete_collection(self, name: str) -> None:
         """Proxy to server implementation - collection operations only"""

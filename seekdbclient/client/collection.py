@@ -342,6 +342,7 @@ class Collection:
             where=where,
             where_document=where_document,
             include=include,
+            embedding_function=self._embedding_function,
             **kwargs
         )
     
