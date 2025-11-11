@@ -141,7 +141,7 @@ class TestCollectionQuery:
         collection_name = f"test_query_{int(time.time())}"
         from seekdbclient import HNSWConfiguration
         config = HNSWConfiguration(dimension=3, distance='l2')
-        collection = client.create_collection(name=collection_name, configuration=config)
+        collection = client.create_collection(name=collection_name, configuration=config, embedding_function=None)
         # Get actual dimension (may be different from requested due to default embedding function)
         actual_dimension = collection.dimension
         
@@ -256,7 +256,7 @@ class TestCollectionQuery:
         collection_name = f"test_query_{int(time.time())}"
         from seekdbclient import HNSWConfiguration
         config = HNSWConfiguration(dimension=3, distance='l2')
-        collection = client.create_collection(name=collection_name, configuration=config)
+        collection = client.create_collection(name=collection_name, configuration=config, embedding_function=None)
         # Get actual dimension (may be different from requested due to default embedding function)
         actual_dimension = collection.dimension
         
@@ -372,7 +372,7 @@ class TestCollectionQuery:
         collection_name = f"test_query_{int(time.time())}"
         from seekdbclient import HNSWConfiguration
         config = HNSWConfiguration(dimension=3, distance='l2')
-        collection = client.create_collection(name=collection_name, configuration=config)
+        collection = client.create_collection(name=collection_name, configuration=config, embedding_function=None)
         # Get actual dimension (may be different from requested due to default embedding function)
         actual_dimension = collection.dimension
         
