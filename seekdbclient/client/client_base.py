@@ -562,8 +562,18 @@ class BaseClient(BaseConnection, AdminAPI):
             if isinstance(vectors, list) and len(vectors) > 0 and not isinstance(vectors[0], list):
                 vectors = [vectors]
         
-        # Auto-generate vectors from documents if documents provided but vectors not provided
-        if documents and not vectors:
+        # Handle vector generation logic:
+        # 1. If vectors are provided, use them directly without embedding
+        # 2. If vectors are not provided but documents are provided:
+        #    - If embedding_function is provided, use it to generate vectors from documents
+        #    - If embedding_function is not provided, raise an error
+        # 3. If neither vectors nor documents are provided, raise an error
+        
+        if vectors:
+            # Vectors provided, use them directly without embedding
+            pass
+        elif documents:
+            # Vectors not provided but documents are provided, check for embedding_function
             if embedding_function is not None:
                 logger.info(f"Generating embeddings for {len(documents)} documents using embedding function")
                 try:
@@ -577,12 +587,16 @@ class BaseClient(BaseConnection, AdminAPI):
                     "Documents provided but no vectors and no embedding function. "
                     "Either:\n"
                     "  1. Provide vectors directly when calling add(), or\n"
-                    "  2. Create collection with embedding_function to auto-generate vectors from documents."
+                    "  2. Provide embedding_function to auto-generate vectors from documents."
                 )
-        
-        # Validate inputs
-        if not documents and not vectors and not metadatas:
-            raise ValueError("At least one of documents, vectors, or metadatas must be provided")
+        else:
+            # Neither vectors nor documents provided, raise an error
+            raise ValueError(
+                "Neither vectors nor documents provided. "
+                "Please provide either:\n"
+                "  1. vectors directly, or\n"
+                "  2. documents with embedding_function to generate vectors."
+            )
         
         # Determine number of items
         num_items = 0
@@ -669,6 +683,7 @@ class BaseClient(BaseConnection, AdminAPI):
         vectors: Optional[Union[List[float], List[List[float]]]] = None,
         metadatas: Optional[Union[Dict, List[Dict]]] = None,
         documents: Optional[Union[str, List[str]]] = None,
+        embedding_function: Optional[EmbeddingFunction[EmbeddingDocuments]] = None,
         **kwargs
     ) -> None:
         """
@@ -681,6 +696,10 @@ class BaseClient(BaseConnection, AdminAPI):
             vectors: New vectors (optional)
             metadatas: New metadata (optional)
             documents: New documents (optional)
+            embedding_function: EmbeddingFunction instance to convert documents to vectors.
+                               Required if documents provided but vectors not provided.
+                               Must implement __call__ method that accepts Documents
+                               and returns Embeddings (List[List[float]]).
             **kwargs: Additional parameters
         """
         logger.info(f"Updating data in collection '{collection_name}'")
@@ -696,11 +715,48 @@ class BaseClient(BaseConnection, AdminAPI):
             if isinstance(vectors, list) and len(vectors) > 0 and not isinstance(vectors[0], list):
                 vectors = [vectors]
         
+        # Handle vector generation logic:
+        # 1. If vectors are provided, use them directly without embedding
+        # 2. If vectors are not provided but documents are provided:
+        #    - If embedding_function is provided, use it to generate vectors from documents
+        #    - If embedding_function is not provided, raise an error
+        # 3. If neither vectors nor documents are provided:
+        #    - If metadatas are provided, allow update (metadata-only update)
+        #    - If metadatas are not provided, raise an error
+        
+        if vectors:
+            # Vectors provided, use them directly without embedding
+            pass
+        elif documents:
+            # Vectors not provided but documents are provided, check for embedding_function
+            if embedding_function is not None:
+                logger.info(f"Generating embeddings for {len(documents)} documents using embedding function")
+                try:
+                    vectors = embedding_function(documents)
+                    logger.info(f"✅ Successfully generated {len(vectors)} embeddings")
+                except Exception as e:
+                    logger.error(f"Failed to generate embeddings: {e}")
+                    raise ValueError(f"Failed to generate embeddings from documents: {e}")
+            else:
+                raise ValueError(
+                    "Documents provided but no vectors and no embedding function. "
+                    "Either:\n"
+                    "  1. Provide vectors directly when calling update(), or\n"
+                    "  2. Provide embedding_function to auto-generate vectors from documents."
+                )
+        elif not metadatas:
+            # Neither vectors nor documents nor metadatas provided, raise an error
+            raise ValueError(
+                "Neither vectors nor documents nor metadatas provided. "
+                "Please provide at least one of:\n"
+                "  1. vectors directly, or\n"
+                "  2. documents with embedding_function to generate vectors, or\n"
+                "  3. metadatas to update metadata only."
+            )
+        
         # Validate inputs
         if not ids:
             raise ValueError("ids must not be empty")
-        if not documents and not metadatas and not vectors:
-            raise ValueError("You must specify at least one column to update")
         
         # Validate lengths match
         if documents and len(documents) != len(ids):
@@ -762,6 +818,7 @@ class BaseClient(BaseConnection, AdminAPI):
         vectors: Optional[Union[List[float], List[List[float]]]] = None,
         metadatas: Optional[Union[Dict, List[Dict]]] = None,
         documents: Optional[Union[str, List[str]]] = None,
+        embedding_function: Optional[EmbeddingFunction[EmbeddingDocuments]] = None,
         **kwargs
     ) -> None:
         """
@@ -774,6 +831,10 @@ class BaseClient(BaseConnection, AdminAPI):
             vectors: Vectors (optional)
             metadatas: Metadata (optional)
             documents: Documents (optional)
+            embedding_function: EmbeddingFunction instance to convert documents to vectors.
+                               Required if documents provided but vectors not provided.
+                               Must implement __call__ method that accepts Documents
+                               and returns Embeddings (List[List[float]]).
             **kwargs: Additional parameters
         """
         logger.info(f"Upserting data in collection '{collection_name}'")
@@ -789,11 +850,48 @@ class BaseClient(BaseConnection, AdminAPI):
             if isinstance(vectors, list) and len(vectors) > 0 and not isinstance(vectors[0], list):
                 vectors = [vectors]
         
+        # Handle vector generation logic:
+        # 1. If vectors are provided, use them directly without embedding
+        # 2. If vectors are not provided but documents are provided:
+        #    - If embedding_function is provided, use it to generate vectors from documents
+        #    - If embedding_function is not provided, raise an error
+        # 3. If neither vectors nor documents are provided:
+        #    - If metadatas are provided, allow upsert (metadata-only upsert)
+        #    - If metadatas are not provided, raise an error
+        
+        if vectors:
+            # Vectors provided, use them directly without embedding
+            pass
+        elif documents:
+            # Vectors not provided but documents are provided, check for embedding_function
+            if embedding_function is not None:
+                logger.info(f"Generating embeddings for {len(documents)} documents using embedding function")
+                try:
+                    vectors = embedding_function(documents)
+                    logger.info(f"✅ Successfully generated {len(vectors)} embeddings")
+                except Exception as e:
+                    logger.error(f"Failed to generate embeddings: {e}")
+                    raise ValueError(f"Failed to generate embeddings from documents: {e}")
+            else:
+                raise ValueError(
+                    "Documents provided but no vectors and no embedding function. "
+                    "Either:\n"
+                    "  1. Provide vectors directly when calling upsert(), or\n"
+                    "  2. Provide embedding_function to auto-generate vectors from documents."
+                )
+        elif not metadatas:
+            # Neither vectors nor documents nor metadatas provided, raise an error
+            raise ValueError(
+                "Neither vectors nor documents nor metadatas provided. "
+                "Please provide at least one of:\n"
+                "  1. vectors directly, or\n"
+                "  2. documents with embedding_function to generate vectors, or\n"
+                "  3. metadatas to update metadata only."
+            )
+        
         # Validate inputs
         if not ids:
             raise ValueError("ids must not be empty")
-        if not documents and not metadatas and not vectors:
-            raise ValueError("You must specify at least one column to upsert")
         
         # Validate lengths match
         if documents and len(documents) != len(ids):
@@ -995,6 +1093,7 @@ class BaseClient(BaseConnection, AdminAPI):
     def _embed_texts(
         self,
         texts: Union[str, List[str]],
+        embedding_function: Optional[EmbeddingFunction[EmbeddingDocuments]] = None,
         **kwargs
     ) -> List[List[float]]:
         """
@@ -1002,19 +1101,18 @@ class BaseClient(BaseConnection, AdminAPI):
         
         Args:
             texts: Single text or list of texts
-            **kwargs: Additional parameters for embedding, including:
-                embedding_function: EmbeddingFunction instance to convert texts to vectors.
-                                   Must implement __call__ method that accepts Documents
-                                   and returns Embeddings (List[List[float]]).
-                                   If not provided, raises NotImplementedError.
+            embedding_function: EmbeddingFunction instance to convert texts to vectors.
+                               Must implement __call__ method that accepts Documents
+                               and returns Embeddings (List[List[float]]).
+                               If not provided, raises NotImplementedError.
+            **kwargs: Additional parameters for embedding (unused for now)
             
         Returns:
             List of vectors (List[List[float]]), where each inner list is an embedding vector
             
-        Note:
-            Uses embedding_function from kwargs if provided, otherwise raises NotImplementedError.
+        Raises:
+            NotImplementedError: If embedding_function is not provided
         """
-        embedding_function = kwargs.get('embedding_function')
         if embedding_function is None:
             raise NotImplementedError(
                 "Text embedding is not implemented. "
@@ -1355,16 +1453,41 @@ class BaseClient(BaseConnection, AdminAPI):
         # Convert collection name to table name
         table_name = f"c$v1${collection_name}"
         
-        # Handle text embedding if query_texts provided
-        if query_texts is not None and query_embeddings is None:
-            logger.info("Embedding query texts...")
-            query_embeddings = self._embed_texts(query_texts, **kwargs)
+        # Handle vector generation logic:
+        # 1. If query_embeddings are provided, use them directly without embedding
+        # 2. If query_embeddings are not provided but query_texts are provided:
+        #    - If embedding_function is provided, use it to generate vectors from query_texts
+        #    - If embedding_function is not provided, raise an error
+        # 3. If neither query_embeddings nor query_texts are provided, raise an error
+        
+        embedding_function = kwargs.get('embedding_function')
+        
+        if query_embeddings is not None:
+            # Query embeddings provided, use them directly without embedding
+            pass
+        elif query_texts is not None:
+            # Query embeddings not provided but query_texts are provided, check for embedding_function
+            if embedding_function is not None:
+                logger.info("Embedding query texts...")
+                query_embeddings = self._embed_texts(query_texts, embedding_function=embedding_function)
+            else:
+                raise ValueError(
+                    "query_texts provided but no query_embeddings and no embedding_function. "
+                    "Either:\n"
+                    "  1. Provide query_embeddings directly, or\n"
+                    "  2. Provide embedding_function to auto-generate vectors from query_texts."
+                )
+        else:
+            # Neither query_embeddings nor query_texts provided, raise an error
+            raise ValueError(
+                "Neither query_embeddings nor query_texts provided. "
+                "Please provide either:\n"
+                "  1. query_embeddings directly, or\n"
+                "  2. query_texts with embedding_function to generate vectors."
+            )
         
         # Normalize query vectors to list of lists
         query_vectors = self._normalize_query_vectors(query_embeddings)
-        
-        if not query_vectors:
-            raise ValueError("Either query_embeddings or query_texts must be provided")
         
         # Check if multiple vectors provided
         is_multiple_vectors = len(query_vectors) > 1
@@ -1959,28 +2082,50 @@ class BaseClient(BaseConnection, AdminAPI):
         where = knn.get("where")
         n_results = knn.get("n_results", 10)
         
+        # Handle vector generation logic:
+        # 1. If query_embeddings are provided, use them directly without embedding
+        # 2. If query_embeddings are not provided but query_texts are provided:
+        #    - If embedding_function is provided, use it to generate vectors from query_texts
+        #    - If embedding_function is not provided, raise an error
+        # 3. If neither query_embeddings nor query_texts are provided, raise an error
+        
+        embedding_function = kwargs.get('embedding_function')
+        
         # Get query vector
         query_vector = None
         if query_embeddings:
-            # Use provided embeddings
+            # Query embeddings provided, use them directly without embedding
             if isinstance(query_embeddings, list) and len(query_embeddings) > 0:
                 if isinstance(query_embeddings[0], list):
                     query_vector = query_embeddings[0]  # Use first vector
                 else:
                     query_vector = query_embeddings
         elif query_texts:
-            # Convert text to embedding
-            try:
-                texts = query_texts if isinstance(query_texts, list) else [query_texts]
-                embeddings = self._embed_texts(texts[0] if len(texts) > 0 else texts, **kwargs)
-                if embeddings and len(embeddings) > 0:
-                    query_vector = embeddings[0]
-            except NotImplementedError:
-                logger.warning("Text embedding not implemented. Please provide query_embeddings directly.")
-                return None
+            # Query embeddings not provided but query_texts are provided, check for embedding_function
+            if embedding_function is not None:
+                try:
+                    texts = query_texts if isinstance(query_texts, list) else [query_texts]
+                    embeddings = self._embed_texts(texts[0] if len(texts) > 0 else texts, embedding_function=embedding_function)
+                    if embeddings and len(embeddings) > 0:
+                        query_vector = embeddings[0]
+                except Exception as e:
+                    logger.error(f"Failed to generate embeddings from query_texts: {e}")
+                    raise ValueError(f"Failed to generate embeddings from query_texts: {e}")
+            else:
+                raise ValueError(
+                    "knn.query_texts provided but no knn.query_embeddings and no embedding_function. "
+                    "Either:\n"
+                    "  1. Provide knn.query_embeddings directly, or\n"
+                    "  2. Provide embedding_function to auto-generate vectors from knn.query_texts."
+                )
         else:
-            logger.warning("knn requires either query_texts or query_embeddings")
-            return None
+            # Neither query_embeddings nor query_texts provided, raise an error
+            raise ValueError(
+                "knn requires either query_embeddings or query_texts. "
+                "Please provide either:\n"
+                "  1. knn.query_embeddings directly, or\n"
+                "  2. knn.query_texts with embedding_function to generate vectors."
+            )
         
         if not query_vector:
             return None

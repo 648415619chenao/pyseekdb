@@ -177,6 +177,7 @@ class Collection:
             vectors=vectors,
             metadatas=metadatas,
             documents=documents,
+            embedding_function=self._embedding_function,
             **kwargs
         )
     
@@ -218,6 +219,7 @@ class Collection:
             vectors=vectors,
             metadatas=metadatas,
             documents=documents,
+            embedding_function=self._embedding_function,
             **kwargs
         )
     
@@ -461,6 +463,7 @@ class Collection:
             rank=rank,
             n_results=n_results,
             include=include,
+            embedding_function=self._embedding_function,
             **kwargs
         )
     
