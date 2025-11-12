@@ -19,6 +19,7 @@ All factories use the underlying ServerAPI implementations:
 - OceanBaseServerClient - OceanBase via pymysql
 """
 import logging
+import os
 from typing import Optional, Union
 
 from .base_connection import BaseConnection
@@ -79,12 +80,14 @@ def Client(
     Automatically selects embedded or server mode based on parameters:
     - If path is provided, uses embedded mode
     - If host/port is provided, uses server mode
+    - If neither path nor host is provided, defaults to embedded mode with current working directory as path
     
     Returns a ClientProxy that only exposes collection operations.
     For database management, use AdminClient().
     
     Args:
-        path: seekdb data directory path (embedded mode)
+        path: seekdb data directory path (embedded mode). If not provided and host is also not provided, 
+              defaults to current working directory
         host: server address (server mode)
         port: server port (server mode)
         database: database name
@@ -96,10 +99,13 @@ def Client(
         _ClientProxy: A proxy that only exposes collection operations
     
     Examples:
-        >>> # Embedded mode
+        >>> # Embedded mode with explicit path
         >>> client = Client(path="/path/to/seekdb", database="db1")
         >>> client.create_collection("my_collection")  # ✅ Available
-        >>> # client.create_database("new_db")  # ❌ Not available
+        
+        >>> # Embedded mode (default, uses current working directory)
+        >>> client = Client(database="db1")
+        >>> client.create_collection("my_collection")  # ✅ Available
         
         >>> # Server mode
         >>> client = Client(
@@ -140,8 +146,13 @@ def Client(
         )
     
     else:
-        raise ValueError(
-            "Must provide either path (embedded mode) or host (server mode) parameter"
+        # Default to embedded mode with current working directory as path
+        default_path = os.getcwd()
+        logger.info(f"Creating embedded client (default): path={default_path}, database={database}")
+        server = SeekdbEmbeddedClient(
+            path=default_path,
+            database=database,
+            **kwargs
         )
     
     # Return ClientProxy (only exposes collection operations)

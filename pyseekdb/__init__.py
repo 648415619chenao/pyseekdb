@@ -62,7 +62,6 @@ from .client import (
     Database,
 )
 from .client.collection import Collection
-from .client.query_result import QueryResult
 
 try:
   __version__ = importlib.metadata.version("pyseekdb")
@@ -87,7 +86,6 @@ __all__ = [
     'Client',
     'OBClient',
     'Collection',
-    'QueryResult',
     'AdminAPI',
     'AdminClient',
     'OBAdminClient',
