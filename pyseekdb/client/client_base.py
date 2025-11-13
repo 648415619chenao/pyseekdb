@@ -1544,8 +1544,8 @@ class BaseClient(BaseConnection, AdminAPI):
         # Build WHERE clause from filters
         where_clause, params = self._build_where_clause(where, where_document)
         
-        # Get distance metric from kwargs, default to 'l2' if not provided
-        distance = kwargs.get('distance', 'l2')
+        # Get distance metric from kwargs, default to DEFAULT_DISTANCE_METRIC if not provided
+        distance = kwargs.get('distance', DEFAULT_DISTANCE_METRIC)
         
         # Map distance metric to SQL function name
         distance_function_map = {

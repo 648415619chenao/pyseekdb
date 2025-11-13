@@ -77,6 +77,7 @@ class RemoteServerClient(BaseClient):
                 database=self.database,
                 charset=self.charset,
                 cursorclass=DictCursor,
+                autocommit=True,
                 **self.kwargs
             )
             logger.info(f"✅ Connected to remote server: {self.host}:{self.port}/{self.database}")
@@ -107,7 +108,6 @@ class RemoteServerClient(BaseClient):
                 sql_upper.startswith('DESC')):
                 return cursor.fetchall()
             
-            conn.commit()
             return cursor
     
     def get_raw_connection(self) -> pymysql.Connection:

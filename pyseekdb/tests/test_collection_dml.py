@@ -71,7 +71,7 @@ class TestCollectionDML:
             {CollectionFieldNames.EMBEDDING} vector({dimension}),
             {CollectionFieldNames.METADATA} json,
             FULLTEXT INDEX idx_fts({CollectionFieldNames.DOCUMENT}),
-            VECTOR INDEX idx_vec ({CollectionFieldNames.EMBEDDING}) with(distance=l2, type=hnsw, lib=vsag)
+            VECTOR INDEX idx_vec ({CollectionFieldNames.EMBEDDING}) with(distance=cosine, type=hnsw, lib=vsag)
         ) ORGANIZATION = HEAP;"""
         client._server.execute(create_table_sql)
         
@@ -239,7 +239,7 @@ class TestCollectionDML:
             {CollectionFieldNames.EMBEDDING} vector({dimension}),
             {CollectionFieldNames.METADATA} json,
             FULLTEXT INDEX idx_fts({CollectionFieldNames.DOCUMENT}),
-            VECTOR INDEX idx_vec ({CollectionFieldNames.EMBEDDING}) with(distance=l2, type=hnsw, lib=vsag)
+            VECTOR INDEX idx_vec ({CollectionFieldNames.EMBEDDING}) with(distance=cosine, type=hnsw, lib=vsag)
         ) ORGANIZATION = HEAP;"""
         client._server.execute(create_table_sql)
         
@@ -442,7 +442,7 @@ class TestCollectionDML:
             {CollectionFieldNames.EMBEDDING} vector({dimension}),
             {CollectionFieldNames.METADATA} json,
             FULLTEXT INDEX idx_fts({CollectionFieldNames.DOCUMENT}),
-            VECTOR INDEX idx_vec ({CollectionFieldNames.EMBEDDING}) with(distance=l2, type=hnsw, lib=vsag)
+            VECTOR INDEX idx_vec ({CollectionFieldNames.EMBEDDING}) with(distance=cosine, type=hnsw, lib=vsag)
         ) ORGANIZATION = HEAP;"""
         client._server.execute(create_table_sql)
         
