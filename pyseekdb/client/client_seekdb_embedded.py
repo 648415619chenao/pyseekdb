@@ -22,7 +22,6 @@ class SeekdbEmbeddedClient(BaseClient):
         self,
         path: str = "./seekdb",
         database: str = "test",
-        autocommit: bool = False,
         **kwargs
     ):
         """
@@ -31,7 +30,6 @@ class SeekdbEmbeddedClient(BaseClient):
         Args:
             path: seekdb data directory path
             database: database name
-            autocommit: whether to auto-commit
         """
         self.path = os.path.abspath(path)
         # Create directory if it doesn't exist
@@ -42,7 +40,6 @@ class SeekdbEmbeddedClient(BaseClient):
             raise ValueError(f"Path exists but is not a directory: {self.path}")
         
         self.database = database
-        self.autocommit = autocommit
         self._connection = None
         self._initialized = False
         
@@ -69,7 +66,7 @@ class SeekdbEmbeddedClient(BaseClient):
         if self._connection is None:
             self._connection = seekdb.connect(  # type: ignore
                 database=self.database,
-                autocommit=self.autocommit
+                autocommit=True
             )
             logger.info(f"✅ Connected to database: {self.database}")
         
@@ -100,14 +97,9 @@ class SeekdbEmbeddedClient(BaseClient):
                 sql_upper.startswith('DESC')):
                 return cursor.fetchall()
             
-            if not self.autocommit:
-                conn.commit()
-            
             return cursor
-        except Exception as e:
-            if not self.autocommit:
-                conn.rollback()
-            raise e
+        except Exception:
+            raise
     
     def get_raw_connection(self) -> Any:  # seekdb.Connection
         """Get raw connection object"""
@@ -163,6 +155,20 @@ class SeekdbEmbeddedClient(BaseClient):
         cursor = conn.cursor()
         try:
             cursor.execute(embedded_sql)
+            
+            # Check if this is a query statement (SELECT, SHOW, DESCRIBE, DESC)
+            # Only query statements return result sets that need fetchall()
+            sql_upper = embedded_sql.strip().upper()
+            is_query = (sql_upper.startswith('SELECT') or 
+                       sql_upper.startswith('SHOW') or 
+                       sql_upper.startswith('DESCRIBE') or
+                       sql_upper.startswith('DESC'))
+            
+            if not is_query:
+                # For non-query statements (DELETE, UPDATE, INSERT, etc.), return empty list
+                return []
+            
+            # For query statements, fetch results
             rows = cursor.fetchall()
             
             # pyseekdb.Cursor doesn't have description, extract column names from SQL
