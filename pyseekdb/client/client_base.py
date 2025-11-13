@@ -1906,6 +1906,9 @@ class BaseClient(BaseConnection, AdminAPI):
             if knn_expr:
                 search_parm["knn"] = knn_expr
         
+        if n_results:
+            search_parm["size"] = n_results
+
         # Build rank part
         if rank:
             search_parm["rank"] = rank
