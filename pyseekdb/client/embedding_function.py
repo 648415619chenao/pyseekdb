@@ -7,7 +7,57 @@ for converting text documents to vector embeddings.
 import os
 import multiprocessing
 from typing import List, Protocol, Union, runtime_checkable, Optional, TypeVar
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process, get_context
+
+# Set multiprocessing start method to 'spawn' to create completely isolated subprocess
+# This avoids static/dynamic stdc++ conflicts when importing both sentence_transformers
+# and pylibseekdb in the same process. 'spawn' creates a fresh Python interpreter
+# process that doesn't inherit the parent's memory space.
+#
+# Key difference:
+# - 'fork' (Unix default): Child process is a copy of parent, shares memory space
+# - 'spawn' (Windows default, Unix available): Fresh Python process, complete isolation
+_mp_context = None
+def _get_mp_context():
+    """
+    Get multiprocessing context with 'spawn' start method for complete isolation.
+    
+    Using 'spawn' ensures the subprocess doesn't inherit the parent's loaded libraries
+    and memory space, preventing static/dynamic stdc++ conflicts.
+    
+    Returns:
+        multiprocessing context with 'spawn' start method
+    """
+    global _mp_context
+    if _mp_context is None:
+        try:
+            # Get current start method (if any)
+            current_method = multiprocessing.get_start_method(allow_none=True)
+            
+            # Try to use 'spawn' for complete isolation
+            if current_method != 'spawn':
+                try:
+                    # Try to set spawn method (only works if not already set)
+                    multiprocessing.set_start_method('spawn', force=False)
+                except RuntimeError:
+                    # Start method already set by another module, that's okay
+                    # We'll use the existing context
+                    pass
+            
+            # Get context with spawn method
+            _mp_context = multiprocessing.get_context('spawn')
+        except (ValueError, RuntimeError) as e:
+            # Fallback: if spawn is not available (shouldn't happen on Unix/Linux),
+            # fall back to default context, but log a warning
+            import warnings
+            warnings.warn(
+                f"Failed to use 'spawn' start method for multiprocessing: {e}. "
+                f"Using default context. This may cause stdc++ conflicts if both "
+                f"pylibseekdb and sentence_transformers are imported.",
+                RuntimeWarning
+            )
+            _mp_context = multiprocessing.get_context()
+    return _mp_context
 
 # Set Hugging Face mirror endpoint for better download speed in China
 # Users can override this by setting HF_ENDPOINT environment variable
@@ -27,16 +77,44 @@ def _embedding_worker_process(request_queue: Queue, response_queue: Queue, model
     """
     Worker process that loads the model and handles embedding requests.
     
-    This function runs in a separate process to isolate the model loading
-    and embedding generation from the main process.
+    This function runs in a completely isolated subprocess (using 'spawn' start method)
+    that doesn't inherit the parent process's memory space. This is critical to avoid
+    static/dynamic stdc++ conflicts when the parent process has imported pylibseekdb
+    (which uses static stdc++) and this subprocess imports sentence_transformers
+    (which uses dynamic stdc++).
+    
+    The 'spawn' method creates a fresh Python interpreter process, ensuring complete
+    isolation from the parent's loaded libraries and memory space.
     
     Args:
         request_queue: Queue for receiving embedding requests
         response_queue: Queue for sending embedding responses
         model_name: Name of the sentence-transformers model to load
+    
+    Note:
+        All imports (torch, sentence_transformers) are done inside this function
+        to ensure they are loaded in the isolated subprocess, not inherited from parent.
     """
+    # Set environment variables to avoid torch initialization issues in subprocess
+    # These help prevent hanging when importing torch in subprocess
+    import os
+    os.environ.setdefault('TORCH_NUM_THREADS', '1')
+    os.environ.setdefault('OMP_NUM_THREADS', '1')
+    os.environ.setdefault('MKL_NUM_THREADS', '1')
+    # Disable CUDA in subprocess to avoid initialization issues
+    os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
+    
     # Import sentence_transformers in the subprocess
     try:
+        # Try to import torch first and configure it to avoid hanging
+        # This must be done before importing sentence_transformers
+        try:
+            import torch
+            # Set single-threaded mode to avoid multiprocessing issues
+            torch.set_num_threads(1)
+        except (ImportError, AttributeError):
+            pass  # torch not available or method not available, continue
+        
         from sentence_transformers import SentenceTransformer
     except ImportError:
         response_queue.put(("error", ImportError(
@@ -162,12 +240,18 @@ class DefaultEmbeddingFunction:
         if self._initialized:
             return
         
-        # Create queues for inter-process communication
-        self._request_queue = Queue()
-        self._response_queue = Queue()
+        # Get spawn context for completely isolated subprocess
+        # This ensures the subprocess doesn't inherit parent's memory space,
+        # avoiding static/dynamic stdc++ conflicts
+        mp_context = _get_mp_context()
+        
+        # Create queues for inter-process communication using spawn context
+        self._request_queue = mp_context.Queue()
+        self._response_queue = mp_context.Queue()
         
         # Start the worker process as daemon so it exits when main process exits
-        self._worker_process = Process(
+        # Using spawn context ensures complete isolation from parent process
+        self._worker_process = mp_context.Process(
             target=_embedding_worker_process,
             args=(self._request_queue, self._response_queue, self.model_name),
             daemon=True
