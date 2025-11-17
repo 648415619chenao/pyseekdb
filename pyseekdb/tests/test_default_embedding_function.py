@@ -9,7 +9,6 @@ import os
 import time
 import uuid
 from pathlib import Path
-
 # Add project path
 # Calculate project root: pyseekdb/tests/test_*.py -> pyobvector/
 # Use resolve() to get absolute path, which works even when running as script
@@ -19,7 +18,6 @@ if str(project_root) not in sys.path:
 
 import pyseekdb
 from pyseekdb import DefaultEmbeddingFunction
-
 
 # ==================== Environment Variable Configuration ====================
 # Embedded mode
@@ -47,13 +45,20 @@ class TestDefaultEmbeddingFunction:
     
     def test_embedded_default_embedding_function(self):
         """Test default embedding function with embedded client"""
-        # Check if seekdb package is available
+        # Check if SeekDB data directory exists
+        if not os.path.exists(SEEKDB_PATH):
+            pytest.skip(
+                f"SeekDB data directory does not exist: {SEEKDB_PATH}\n"
+                f"Set SEEKDB_PATH environment variable to run this test"
+            )
+        
+        # Check if embedded package is available
         try:
             import pylibseekdb
         except ImportError:
             pytest.skip("SeekDB embedded package is not installed")
         
-        # Check if sentence-transformers is available
+        # Check if sentence-transformers is available for default embedding function
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
@@ -204,19 +209,16 @@ class TestDefaultEmbeddingFunction:
         finally:
             # Cleanup
             try:
+                # Clean up embedding function to stop subprocess
+                if collection is not None and collection.embedding_function is not None:
+                    if hasattr(collection.embedding_function, 'close'):
+                        collection.embedding_function.close()
                 client.delete_collection(collection_name)
                 print(f"\n✅ Cleaned up collection '{collection_name}'")
             except Exception as e:
                 print(f"\n⚠️  Failed to cleanup collection: {e}")
     
-    def test_server_default_embedding_function(self):
-        """Test default embedding function with server client"""
-        # Check if sentence-transformers is available
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError:
-            pytest.skip("sentence-transformers is not installed. Install with: pip install sentence-transformers")
-        
+    def test_server_default_embedding_function(self):   
         # Create server client
         client = pyseekdb.Client(
             host=SERVER_HOST,
@@ -280,18 +282,16 @@ class TestDefaultEmbeddingFunction:
         finally:
             # Cleanup
             try:
+                # Clean up embedding function to stop subprocess
+                if collection is not None and collection.embedding_function is not None:
+                    if hasattr(collection.embedding_function, 'close'):
+                        collection.embedding_function.close()
                 client.delete_collection(collection_name)
             except Exception as e:
                 print(f"⚠️  Failed to cleanup: {e}")
     
     def test_oceanbase_default_embedding_function(self):
         """Test default embedding function with OceanBase client"""
-        # Check if sentence-transformers is available
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError:
-            pytest.skip("sentence-transformers is not installed. Install with: pip install sentence-transformers")
-        
         # Create OceanBase client
         client = pyseekdb.Client(
             host=OB_HOST,
@@ -356,6 +356,10 @@ class TestDefaultEmbeddingFunction:
         finally:
             # Cleanup
             try:
+                # Clean up embedding function to stop subprocess
+                if collection is not None and collection.embedding_function is not None:
+                    if hasattr(collection.embedding_function, 'close'):
+                        collection.embedding_function.close()
                 client.delete_collection(collection_name)
             except Exception as e:
                 print(f"⚠️  Failed to cleanup: {e}")
